@@ -1,0 +1,6 @@
+NEED ASAP:
+- Rotation needs fixing with many pieces, along with rotation when flipped.
+
+ALSO:
+- Pause screen needs overlay to see text
+- Game over screen needs fixing.
