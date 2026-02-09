@@ -964,11 +964,13 @@ void handle_input(void) {
     /* ── GAME OVER ────────────────────────────────────────────────────────── */
     if(game.state == STATE_GAME_OVER) {
         // Block ALL input while save is in progress
-        if(save_game_async_in_progress()) return;
+        int save_in_progress = save_game_async_in_progress();
+        if(save_in_progress) return;
         
-        // After save completes, allow menu navigation
-        if(down & KEY_UP)   { if(game.game_over_selection > 0) game.game_over_selection--; }
-        if(down & KEY_DOWN) { if(game.game_over_selection < 1) game.game_over_selection++; }
+        // After save completes, allow menu navigation with LEFT/RIGHT
+        // (since options are on the same horizontal line)
+        if(down & KEY_LEFT)  { if(game.game_over_selection > 0) game.game_over_selection--; }
+        if(down & KEY_RIGHT) { if(game.game_over_selection < 1) game.game_over_selection++; }
         if(down & (KEY_START | KEY_A)) {
             if(game.game_over_selection == 0) init_game();   /* restart */
             else { game.state = STATE_MAIN_MENU; game.menu_selection = 0; }

@@ -8,7 +8,7 @@
 #define SAVE_VERSION 2
 #define SAVE_MAGIC 0x504B4D4E
 
-// Save data structure
+// Save data structure  
 typedef struct {
     u32 magic;                    // Magic number for validation
     u16 version;                  // Save format version

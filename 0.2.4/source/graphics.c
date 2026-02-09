@@ -968,16 +968,17 @@ void render_game(void) {
         show_mode_select();
     }
     else if(game.state == STATE_GAME_OVER) {
-        // FIRST: Show the screen immediately
+        // Show the screen FIRST
         show_game_over();
         
-        // THEN: Initialize save on SECOND FRAME (after screen has been seen)
+        // Track frames for save initialization
         static u8 game_over_save_started = 0;
         static u8 game_over_frames = 0;
         
         game_over_frames++;
         
-        // Start save on frame 2 (after user has seen the screen)
+        // Start save on SECOND FRAME (after screen is visible and user sees it)
+        // This way, "NOW SAVING..." shows DURING the actual save operation
         if(game_over_frames == 2 && !game_over_save_started && !save_game_async_in_progress()) {
             // Queue Pokemon data for async save
             save_pokemon_progress_deferred(game.pokemon_catches);
@@ -999,6 +1000,9 @@ void render_game(void) {
         if(game.state != STATE_GAME_OVER) {
             game_over_save_started = 0;
             game_over_frames = 0;
+            // Reset the save_phase flag in show_game_over by calling it with reset context
+            extern void reset_game_over_state(void);
+            reset_game_over_state();
         }
     }
     else if(game.state == STATE_POKEDEX) {
@@ -1299,76 +1303,98 @@ void show_catch_celebration(void) {
     }
 }
 
+// Static variables for game over state (shared between functions)
+static u8 game_over_save_phase_active = 1;
+static u8 game_over_post_save_delay = 0;
+
+void reset_game_over_state(void) {
+    game_over_save_phase_active = 1;  // Reset to saving phase
+    game_over_post_save_delay = 0;    // Reset delay counter
+}
+
 void show_game_over(void) {
-    clear_screen(BLACK); // Black background
+    clear_screen(RGB15(0,0,10)); // Blue background to match main screens
     
-    // "GAME OVER" title - centered at top
-    int title_x = 60;
-    int title_y = 15;
+    // Reset flag when save completes
+    if(!save_game_async_in_progress() && game_over_save_phase_active) {
+        // Small delay after save completes before showing menu
+        game_over_post_save_delay++;
+        if(game_over_post_save_delay > 10) {  // Wait 10 frames after save completes
+            game_over_save_phase_active = 0;
+            game_over_post_save_delay = 0;
+        }
+    }
     
-    // Draw outline (black) for depth effect
-    draw_text_large(title_x-1, title_y-1, "GAME OVER", BLACK);
-    draw_text_large(title_x+1, title_y-1, "GAME OVER", BLACK);
-    draw_text_large(title_x-1, title_y+1, "GAME OVER", BLACK);
-    draw_text_large(title_x+1, title_y+1, "GAME OVER", BLACK);
-    // Draw main text (red)
+    // Check if this is a new highscore
+    int is_new_highscore = is_high_score(game.mode, game.score);
+    
+    // "GAME OVER" title - large font at top, centered
+    // "GAME OVER" = 9 chars * 16px spacing = 144px wide
+    int title_x = (SCREEN_WIDTH - 144) / 2;  // Center: (240 - 144) / 2 = 48
+    int title_y = 20;
     draw_text_large(title_x, title_y, "GAME OVER", RED);
     
-    // Stats section - simplified to match user spec
-    int stats_y = 50;
+    // NEW HIGHSCORE message if applicable
+    if(is_new_highscore) {
+        // "NEW HIGHSCORE!" centered below title
+        // "NEW HIGHSCORE!" = 14 chars * 10px = 140px
+        int hs_x = (SCREEN_WIDTH - 140) / 2;
+        draw_text_menu(hs_x, title_y + 22, "NEW HIGHSCORE!", POKEMON_YELLOW);
+    }
     
-    // POINTS (renamed from SCORE)
-    draw_text_menu(40, stats_y, "POINTS:", WHITE);
-    draw_number(120, stats_y, game.score, YELLOW);
+    // Stats section - using small font (draw_text = 8px per char)
+    int stats_y = is_new_highscore ? 65 : 55;  // Shift down if showing highscore message
+    int label_x = 30;
+    int value_x = 110;  // Align values
     
-    // LINES
-    draw_text_menu(40, stats_y + 16, "LINES:", WHITE);
-    draw_number(120, stats_y + 16, game.lines_cleared, YELLOW);
+    // Points: (small font)
+    draw_text(label_x, stats_y, "Points:", WHITE);
+    draw_number(value_x, stats_y, game.score, YELLOW);
     
-    // POKEMON CAUGHT (renamed from POKEMON)
-    draw_text_menu(40, stats_y + 32, "POKEMON CAUGHT:", WHITE);
-    draw_number(180, stats_y + 32, game.pokemon_caught_this_game, POKEMON_YELLOW);
+    // Lines: (small font)
+    draw_text(label_x, stats_y + 15, "Lines:", WHITE);
+    draw_number(value_x, stats_y + 15, game.lines_cleared, YELLOW);
     
-    // NEW POKEMON (renamed from NEW DEX)
-    draw_text_menu(40, stats_y + 48, "NEW POKEMON:", WHITE);
-    draw_number(180, stats_y + 48, game.new_dex_entries, GREEN);
+    // Caught: (small font)
+    draw_text(label_x, stats_y + 30, "Caught:", WHITE);
+    draw_number(value_x, stats_y + 30, game.pokemon_caught_this_game, YELLOW);
     
-    // Check if save is in progress
-    int saving = save_game_async_in_progress();
+    // New: (small font)
+    draw_text(label_x, stats_y + 45, "New:", WHITE);
+    draw_number(value_x, stats_y + 45, game.new_dex_entries, GREEN);
     
-    if(saving) {
-        // "NOW SAVING" message - large and prominent
-        int saving_y = 115;
-        // "NOW SAVING" = 10 chars * 16px = 160px wide for large font
-        // Center: (240 - 160) / 2 = 40
-        draw_text_large(40, saving_y, "NOW SAVING", POKEMON_YELLOW);
+    int bottom_y = 130;  // Moved down from 118 to give more space
+    
+    if(game_over_save_phase_active) {
+        // "NOW SAVING..." message - medium font (draw_text_menu), gray color
+        // "NOW SAVING..." = 13 chars * 10px = 130px wide
+        int saving_x = (SCREEN_WIDTH - 130) / 2;  // Center: (240 - 130) / 2 = 55
+        draw_text_menu(saving_x, bottom_y, "NOW SAVING...", GRAY);
     } else {
-        // Show menu options only after save completes
-        int menu_y = 115;
+        // Show "Restart" and "Menu" options on same line
+        // Using medium font (draw_text_menu = 10px per char)
+        
+        int restart_x = 40;   // "Restart" position
+        int menu_x = 150;     // "Menu" position (same line, well-spaced)
         
         // RESTART option
         if(game.game_over_selection == 0) {
-            // Selected - yellow with black outline
-            draw_text_large(59, menu_y-1, "RESTART", BLACK);
-            draw_text_large(61, menu_y-1, "RESTART", BLACK);
-            draw_text_large(59, menu_y+1, "RESTART", BLACK);
-            draw_text_large(61, menu_y+1, "RESTART", BLACK);
-            draw_text_large(60, menu_y, "RESTART", POKEMON_YELLOW);
+            // Selected - yellow
+            draw_text_menu(restart_x, bottom_y, "Restart", POKEMON_YELLOW);
         } else {
-            draw_text_large(60, menu_y, "RESTART", WHITE);
+            draw_text_menu(restart_x, bottom_y, "Restart", WHITE);
         }
         
-        // MENU option (20px spacing for better separation)
+        // MENU option
         if(game.game_over_selection == 1) {
-            // Selected - yellow with black outline
-            draw_text_large(74, menu_y+20-1, "MENU", BLACK);
-            draw_text_large(76, menu_y+20-1, "MENU", BLACK);
-            draw_text_large(74, menu_y+20+1, "MENU", BLACK);
-            draw_text_large(76, menu_y+20+1, "MENU", BLACK);
-            draw_text_large(75, menu_y+20, "MENU", POKEMON_YELLOW);
+            // Selected - yellow
+            draw_text_menu(menu_x, bottom_y, "Menu", POKEMON_YELLOW);
         } else {
-            draw_text_large(75, menu_y+20, "MENU", WHITE);
+            draw_text_menu(menu_x, bottom_y, "Menu", WHITE);
         }
+        
+        // Reset save phase when user leaves game over screen
+        // (This is detected by checking if we're still in game over state next frame)
     }
 }
 

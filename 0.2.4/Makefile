@@ -59,14 +59,14 @@ clean:
 	@echo "✓ Clean complete"
 
 #---------------------------------------------------------------------------------
-# ROM creation with proper header for Delta iOS compatibility
+# ROM creation with SRAM save type
 #---------------------------------------------------------------------------------
 
 $(TARGET).gba: $(TARGET).elf
 	@echo "Creating GBA ROM..."
 	@$(OBJCOPY) -O binary $< $@
-	@-gbafix -t"POKETETRIS" -c"PKTM" -m"01" -r0 -p $@ 2>/dev/null || true
-	@echo "✓ ROM fixed with save type markers for Delta compatibility"
+	@-gbafix -t"POKETETRIS" -c"PKTM" -m"01" -r2 -p $@ 2>/dev/null || true
+	@echo "✓ ROM fixed with SRAM (32KB) save type"
 
 #---------------------------------------------------------------------------------
 # Linking (response file avoids "argument list too long")
@@ -99,4 +99,17 @@ $(BUILD)/spr/%.o: $(SPRITES)/%.c
 #   make -j4        - 4 parallel jobs (use number of your CPU cores)
 #   make -j         - use ALL cores
 #   make clean      - remove all build files
+#---------------------------------------------------------------------------------
+
+#---------------------------------------------------------------------------------
+# Save Type Reference (gbafix -r flag):
+#   -r0  EEPROM      512 bytes    (Pokemon Ruby/Sapphire)
+#   -r1  EEPROM_V124 8KB          (Pokemon Emerald)
+#   -r2  SRAM        32KB         (Pokemon Tetris - THIS GAME)
+#   -r3  FLASH1M     128KB        
+#   -r4  FLASH       64KB
+#
+# We use -r2 (SRAM 32KB) which is standard for GBA games.
+# Modern flash carts use FLASH chips that emulate SRAM (no battery needed).
+# Our SaveData is ~8KB, fits perfectly in 32KB SRAM.
 #---------------------------------------------------------------------------------
