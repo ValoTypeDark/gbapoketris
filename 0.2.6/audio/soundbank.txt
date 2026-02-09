@@ -1,0 +1,8 @@
+********* Samples ***************************************************************
+
+clear              clear_gba.wav
+bigclear           big_clear_gba.wav  
+levelup            level_up_gba.wav
+menumove           menu_move_gba.wav
+pokemoncatch       pokemon_catch_gba.wav
+shiny              shiny_gba.wav
