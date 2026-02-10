@@ -1,3 +1,4 @@
+build/src/audio.o
 build/src/font_pokemon_classic6.o
 build/src/font_pokemon_game10.o
 build/src/font_pokemon_solid14.o
@@ -2724,3 +2725,4 @@ build/spr/p1024c.o
 build/spr/p1024c_shiny.o
 build/spr/p1025.o
 build/spr/p1025_shiny.o
+build/soundbank.bin.o

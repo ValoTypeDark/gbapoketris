@@ -2,6 +2,7 @@
 
 #include "main.h"
 #include "save.h"
+#include "audio.h"
 
 #include <string.h>
 
@@ -169,7 +170,10 @@ void highscores_ui_handle_input(u16 down, u16 held) {
     if(s_page < 0) s_page = HS_PAGE_COUNT - 1;
     if(s_page >= HS_PAGE_COUNT) s_page = 0;
 
-    if(s_page != prev) s_dirty = 1;
+    if(s_page != prev) {
+        s_dirty = 1;
+        audio_play_sfx(SFX_MENU_MOVE);
+    }
 }
 
 static void draw_background(void) {

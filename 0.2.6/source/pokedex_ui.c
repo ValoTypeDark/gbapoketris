@@ -4,6 +4,7 @@
 #include "sprite_manager.h"
 #include "save.h"
 #include "font_pokemongame8.h"
+#include "audio.h"
 #include <stdio.h>
 #include <string.h>
 
@@ -288,6 +289,7 @@ static void move_selection(int delta) {
         s_dex_scroll_delay = 0;
 
         s_dirty = 1;
+        audio_play_sfx(SFX_MENU_MOVE);  // Play navigation sound
     }
 }
 

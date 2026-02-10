@@ -5,6 +5,7 @@
 #include "pokedex_ui.h"
 #include "highscores_ui.h"
 #include "options_ui.h"
+#include "audio.h"
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
@@ -203,11 +204,17 @@ int main(void) {
 
     /* Sprite sub-system (OAM hide + cache clear) */
     init_sprite_system();
+    
+    /* Audio system (initialize AFTER save system so volumes load correctly) */
+    audio_init();
 
     /* ── Main loop ── */
     while(1) {
         VBlankIntrWait();        /* sync to 60 fps */
         rng_mix_frame();
+        
+        /* Update audio system every frame (REQUIRED for MaxMod) */
+        audio_update();
         
         // Handle splash screen logic
         if(game.state == STATE_SPLASH) {
@@ -705,6 +712,13 @@ void try_catch_pokemon(int lines_cleared) {
     game.catch_celebration_active    = 1;
     game.catch_celebration_timer     = 0;
     game.caught_pokemon_id           = idx;
+    
+    /* Play catch sound - shiny has special sound! */
+    if(shiny) {
+        audio_play_sfx(SFX_SHINY);
+    } else {
+        audio_play_sfx(SFX_POKEMON_CATCH);
+    }
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
@@ -755,6 +769,13 @@ static void finish_line_clear(Board* board) {
     /* ── Scoring ── */
     game.lines_cleared += count;
 
+    /* Play sound effect based on line count */
+    if(count >= 4) {
+        audio_play_sfx(SFX_BIG_CLEAR);  // Tetris or Pentris!
+    } else if(count > 0) {
+        audio_play_sfx(SFX_CLEAR);       // Normal line clear
+    }
+
     {
         u32 base = 0;
         switch(count) {
@@ -769,9 +790,14 @@ static void finish_line_clear(Board* board) {
 
     /* Level up every 10 lines */
     {
+        int old_level = game.level;
         int nl = 1 + (int)game.lines_cleared / 10;
         if(nl > 99) nl = 99;
-        if(nl > (int)game.level) { game.level = nl; update_fall_speed(); }
+        if(nl > (int)game.level) { 
+            game.level = nl; 
+            update_fall_speed();
+            audio_play_sfx(SFX_LEVEL_UP);  // Level up sound!
+        }
     }
 
     /* Streak + catch attempt */
@@ -826,10 +852,10 @@ u16 get_tetromino_color(TetrominoType type) {
 /* ─────────────────────────────────────────────────────────────────────────────
  * Screen shake
  * ───────────────────────────────────────────────────────────────────────────── */
-void start_screen_shake(u8 intensity) {
+void start_screen_shake(int intensity) {
     game.screen_shake_active = 1;
     game.screen_shake_timer  = 12;
-    game.shake_intensity     = intensity;
+    game.shake_intensity     = (u8)intensity;
 }
 
 void update_screen_shake(void) {
@@ -919,8 +945,18 @@ void handle_input(void) {
     /* ── TITLE (with integrated horizontal menu) ──────────────────────────── */
     if(game.state == STATE_TITLE) {
         // Horizontal navigation with LEFT/RIGHT
-        if(down & KEY_LEFT)  { if(game.menu_selection > 0) game.menu_selection--; }
-        if(down & KEY_RIGHT) { if(game.menu_selection < 4) game.menu_selection++; }
+        if(down & KEY_LEFT)  { 
+            if(game.menu_selection > 0) {
+                game.menu_selection--;
+                audio_play_sfx(SFX_MENU_MOVE);
+            }
+        }
+        if(down & KEY_RIGHT) { 
+            if(game.menu_selection < 4) {
+                game.menu_selection++;
+                audio_play_sfx(SFX_MENU_MOVE);
+            }
+        }
         
         // Activate selected menu item with A or START
         if(down & (KEY_START | KEY_A)) {
@@ -944,8 +980,18 @@ void handle_input(void) {
 
     /* ── MODE SELECT ──────────────────────────────────────────────────────── */
     if(game.state == STATE_MODE_SELECT) {
-        if(down & KEY_LEFT)  { if(game.mode > 0) game.mode--; }
-        if(down & KEY_RIGHT) { if(game.mode < 6) game.mode++; }
+        if(down & KEY_LEFT)  { 
+            if(game.mode > 0) {
+                game.mode--;
+                audio_play_sfx(SFX_MENU_MOVE);
+            }
+        }
+        if(down & KEY_RIGHT) { 
+            if(game.mode < 6) {
+                game.mode++;
+                audio_play_sfx(SFX_MENU_MOVE);
+            }
+        }
         if(down & KEY_B)     { game.state = STATE_TITLE; game.mode = MODE_ROOKIE; }
         if(down & (KEY_START | KEY_A)) {
             if(game.mode == MODE_BACK) {

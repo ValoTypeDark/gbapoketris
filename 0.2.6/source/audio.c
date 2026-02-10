@@ -1,4 +1,5 @@
 #include "audio.h"
+#include "main.h"
 #include "save.h"
 #include <maxmod.h>
 #include "soundbank.h"
@@ -29,31 +30,42 @@ void audio_play_sfx(SoundEffect sfx) {
     // Check if SFX are enabled (volume > 0)
     if(sfx_volume == 0) return;
     
-    mm_sfxhand handle;
+    // MaxMod effect structure
+    mm_sound_effect sound;
+    sound.rate = 1024;  // Normal playback rate
+    sound.handle = 0;   // Auto-assign channel
+    sound.volume = (sfx_volume * 255) / 1024;  // Convert to 0-255
+    sound.panning = 128; // Center
     
     switch(sfx) {
         case SFX_MENU_MOVE:
-            mmEffect(SFX_MENUMOVE);
+            sound.id = SFX_MENU_MOVE_GBA;
+            mmEffectEx(&sound);
             break;
             
         case SFX_CLEAR:
-            mmEffect(SFX_CLEAR);
+            sound.id = SFX_CLEAR_GBA;
+            mmEffectEx(&sound);
             break;
             
         case SFX_BIG_CLEAR:
-            mmEffect(SFX_BIGCLEAR);
+            sound.id = SFX_BIG_CLEAR_GBA;
+            mmEffectEx(&sound);
             break;
             
         case SFX_LEVEL_UP:
-            mmEffect(SFX_LEVELUP);
+            sound.id = SFX_LEVEL_UP_GBA;
+            mmEffectEx(&sound);
             break;
             
         case SFX_POKEMON_CATCH:
-            mmEffect(SFX_POKEMONCATCH);
+            sound.id = SFX_POKEMON_CATCH_GBA;
+            mmEffectEx(&sound);
             break;
             
         case SFX_SHINY:
-            mmEffect(SFX_SHINY);
+            sound.id = SFX_SHINY_GBA;
+            mmEffectEx(&sound);
             break;
             
         default:

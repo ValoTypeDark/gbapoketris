@@ -255,26 +255,10 @@ void spawn_random_pokemon(void);
 void spawn_next_piece(void);
 void try_catch_pokemon(int lines_cleared);
 void update_catch_celebration(void);
+void unlock_pokemon(u16 pokemon_id, u8 is_shiny);
 
-// Screen shake
-void start_screen_shake(u8 intensity);
-void update_screen_shake(void);
-
-// Drawing functions (declared in graphics.c)
-void draw_block(int x, int y, u16 color);
-void draw_tetromino(Tetromino* tetro, int offset_x, int offset_y);
-void render_board(Board* board);
-void show_catch_celebration(void);
-
-// Menu functions
-void show_title_screen(void);
-void show_main_menu(void);
-void show_mode_select(void);
-void show_game_over(void);
-void show_pokedex(void);
-void show_highscores(void);
-void show_options(void);
-void show_credits(void);
+// Screen shake and effects
+void start_screen_shake(int intensity);
 
 // Utility
 u16 get_tetromino_color(TetrominoType type);

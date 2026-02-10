@@ -1,5 +1,5 @@
 #---------------------------------------------------------------------------------
-# Pokemon Tetris GBA - Makefile
+# Pokemon Tetris GBA - Makefile with MaxMod Audio Support
 # Supports parallel compilation (-j flag) and response file linking
 #---------------------------------------------------------------------------------
 
@@ -23,7 +23,7 @@ CFLAGS   := -Wall -O2 \
             -I$(DEVKITPRO)/libgba/include
 
 LDFLAGS  := $(ARCH) -specs=gba.specs
-LIBS     := -L$(DEVKITPRO)/libgba/lib -lgba
+LIBS     := -L$(DEVKITPRO)/libgba/lib -lmm -lgba
 
 #---------------------------------------------------------------------------------
 # File lists
@@ -37,7 +37,10 @@ SRC_OFILES   := $(SRC_CFILES:$(SOURCES)/%.c=$(BUILD)/src/%.o)
 SPR_CFILES   := $(wildcard $(SPRITES)/*.c)
 SPR_OFILES   := $(SPR_CFILES:$(SPRITES)/%.c=$(BUILD)/spr/%.o)
 
-ALL_OFILES   := $(SRC_OFILES) $(SPR_OFILES)
+# Soundbank binary -> .o
+SOUNDBANK_OFILE := $(BUILD)/soundbank.bin.o
+
+ALL_OFILES   := $(SRC_OFILES) $(SPR_OFILES) $(SOUNDBANK_OFILE)
 
 #---------------------------------------------------------------------------------
 # Targets
@@ -54,19 +57,23 @@ all: $(TARGET).gba
 
 clean:
 	@echo "Cleaning..."
-	@rm -rf $(BUILD)
+	@rm -f $(BUILD)/src/*.o 2>/dev/null || true
+	@rm -f $(BUILD)/spr/*.o 2>/dev/null || true
+	@rm -f $(BUILD)/soundbank.bin.o 2>/dev/null || true
+	@rm -f $(BUILD)/objects.txt 2>/dev/null || true
+	@rm -f $(INCLUDES)/soundbank_bin.h 2>/dev/null || true
 	@rm -f $(TARGET).elf $(TARGET).gba
 	@echo "✓ Clean complete"
 
 #---------------------------------------------------------------------------------
-# ROM creation with SRAM save type
+# ROM creation with proper header for Delta iOS compatibility
 #---------------------------------------------------------------------------------
 
 $(TARGET).gba: $(TARGET).elf
 	@echo "Creating GBA ROM..."
 	@$(OBJCOPY) -O binary $< $@
-	@-gbafix -t"POKETETRIS" -c"PKTM" -m"01" -r2 -p $@ 2>/dev/null || true
-	@echo "✓ ROM fixed with SRAM (32KB) save type"
+	@-gbafix -t"POKETETRIS" -c"PKTM" -m"01" -r0 -p $@ 2>/dev/null || true
+	@echo "✓ ROM fixed with save type markers for Delta compatibility"
 
 #---------------------------------------------------------------------------------
 # Linking (response file avoids "argument list too long")
@@ -82,8 +89,8 @@ $(TARGET).elf: $(ALL_OFILES)
 # Compilation rules
 #---------------------------------------------------------------------------------
 
-# Source files
-$(BUILD)/src/%.o: $(SOURCES)/%.c
+# Source files (audio.c needs soundbank_bin.h)
+$(BUILD)/src/%.o: $(SOURCES)/%.c $(INCLUDES)/soundbank_bin.h
 	@mkdir -p $(BUILD)/src
 	@echo "  src: $(<F)"
 	@$(CC) $(CFLAGS) -c $< -o $@
@@ -94,22 +101,39 @@ $(BUILD)/spr/%.o: $(SPRITES)/%.c
 	@$(CC) $(CFLAGS) -c $< -o $@
 
 #---------------------------------------------------------------------------------
+# Soundbank binary embedding (MaxMod audio)
+# Soundbank files live in audio/ directory (committed to source control)
+#---------------------------------------------------------------------------------
+
+# Generate soundbank_bin.h from audio/soundbank.bin
+$(INCLUDES)/soundbank_bin.h: audio/soundbank.bin
+	@echo "  Generating soundbank_bin.h..."
+	@echo "// Auto-generated soundbank binary symbols" > $(INCLUDES)/soundbank_bin.h
+	@echo "#ifndef SOUNDBANK_BIN_H" >> $(INCLUDES)/soundbank_bin.h
+	@echo "#define SOUNDBANK_BIN_H" >> $(INCLUDES)/soundbank_bin.h
+	@echo "extern const unsigned char soundbank_bin[];" >> $(INCLUDES)/soundbank_bin.h
+	@echo "extern const unsigned char soundbank_bin_end[];" >> $(INCLUDES)/soundbank_bin.h
+	@echo "extern const unsigned int soundbank_bin_size;" >> $(INCLUDES)/soundbank_bin.h
+	@echo "#endif" >> $(INCLUDES)/soundbank_bin.h
+
+# Convert audio/soundbank.bin to object file in build/
+$(BUILD)/soundbank.bin.o: audio/soundbank.bin
+	@echo "  audio: soundbank.bin"
+	@$(PREFIX)objcopy -I binary -O elf32-littlearm -B arm \
+		--rename-section .data=.rodata,alloc,load,readonly,data,contents \
+		--redefine-sym _binary_audio_soundbank_bin_start=soundbank_bin \
+		--redefine-sym _binary_audio_soundbank_bin_end=soundbank_bin_end \
+		--redefine-sym _binary_audio_soundbank_bin_size=soundbank_bin_size \
+		audio/soundbank.bin $(BUILD)/soundbank.bin.o
+
+# To regenerate soundbank (only when you change audio files):
+# cd audio && mmutil *.wav -osoundbank.bin -hsoundbank.h
+# Files stay in audio/ directory - no need to move them!
+
+#---------------------------------------------------------------------------------
 # Usage:
 #   make            - single core build
 #   make -j4        - 4 parallel jobs (use number of your CPU cores)
 #   make -j         - use ALL cores
 #   make clean      - remove all build files
-#---------------------------------------------------------------------------------
-
-#---------------------------------------------------------------------------------
-# Save Type Reference (gbafix -r flag):
-#   -r0  EEPROM      512 bytes    (Pokemon Ruby/Sapphire)
-#   -r1  EEPROM_V124 8KB          (Pokemon Emerald)
-#   -r2  SRAM        32KB         (Pokemon Tetris - THIS GAME)
-#   -r3  FLASH1M     128KB        
-#   -r4  FLASH       64KB
-#
-# We use -r2 (SRAM 32KB) which is standard for GBA games.
-# Modern flash carts use FLASH chips that emulate SRAM (no battery needed).
-# Our SaveData is ~8KB, fits perfectly in 32KB SRAM.
 #---------------------------------------------------------------------------------

@@ -1,6 +1,7 @@
 #include "options_ui.h"
 #include "main.h"
 #include "save.h"
+#include "audio.h"
 #include <stdio.h>
 #include <string.h>
 
@@ -79,13 +80,19 @@ void options_ui_handle_input(u16 down, u16 held) {
     (void)held;
     
     if(down & KEY_UP) {
-        if(s_selected > 0) s_selected--;
-        s_dirty = 1;
+        if(s_selected > 0) {
+            s_selected--;
+            s_dirty = 1;
+            audio_play_sfx(SFX_MENU_MOVE);
+        }
     }
     
     if(down & KEY_DOWN) {
-        if(s_selected < 2) s_selected++;  // 0=Music, 1=SFX, 2=Controls
-        s_dirty = 1;
+        if(s_selected < 2) {  // 0=Music, 1=SFX, 2=Controls
+            s_selected++;
+            s_dirty = 1;
+            audio_play_sfx(SFX_MENU_MOVE);
+        }
     }
     
     // LEFT/RIGHT to change control mapping (only on Controls option)
@@ -95,6 +102,7 @@ void options_ui_handle_input(u16 down, u16 held) {
             u8 current = get_control_swap();
             set_control_swap(!current);  // This saves to FLASH automatically
             s_dirty = 1;
+            audio_play_sfx(SFX_MENU_MOVE);
         }
     }
 }

@@ -1,0 +1,9 @@
+#define SFX_CLEAR_GBA	0
+#define SFX_BIG_CLEAR_GBA	1
+#define SFX_LEVEL_UP_GBA	2
+#define SFX_MENU_MOVE_GBA	3
+#define SFX_POKEMON_CATCH_GBA	4
+#define SFX_SHINY_GBA	5
+#define MSL_NSONGS	0
+#define MSL_NSAMPS	6
+#define MSL_BANKSIZE	6

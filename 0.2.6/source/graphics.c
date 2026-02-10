@@ -1,4 +1,5 @@
 #include "main.h"
+#include "graphics.h"
 #include "pokemon_database.h"
 #include "sprite_manager.h"
 #include "save.h"
