@@ -663,6 +663,78 @@ void clear_screen(u16 color) {
     }
 }
 
+// Helper function: Draw sprite as solid-color silhouette
+// Uses frequency analysis to detect background color (most sprites don't use index 0 as transparent)
+static void draw_sprite_silhouette(int dest_x, int dest_y, SpriteData* sprite,
+                                   int dest_w, int dest_h, u16 color) {
+    if(!sprite || !sprite->is_loaded) return;
+
+    const u8* tiles = sprite->tiles;
+    int src_w = sprite->width;
+    int src_h = sprite->height;
+    int tiles_per_row = src_w / 8;
+
+    // Detect most common palette index (this is the background)
+    u16 freq[256] = {0};
+    for(int sy = 0; sy < src_h; sy++) {
+        int tile_row = sy >> 3;
+        int pix_row = sy & 7;
+        for(int sx = 0; sx < src_w; sx++) {
+            int tile_col = sx >> 3;
+            int pix_col = sx & 7;
+            int tile_index = tile_row * tiles_per_row + tile_col;
+            u8 idx = tiles[(tile_index << 6) + (pix_row << 3) + pix_col];
+            if(freq[idx] < 0xFFFF) freq[idx]++;
+        }
+    }
+    
+    // Find most common index = background
+    u8 bg_index = 0;
+    u16 best = 0;
+    for(int i = 0; i < 256; i++) {
+        if(freq[i] > best) {
+            best = freq[i];
+            bg_index = (u8)i;
+        }
+    }
+
+    // Pre-compute source pixel mappings
+    u8 src_x_map[64];
+    u8 src_y_map[64];
+    for(int i = 0; i < dest_w; i++) src_x_map[i] = (u8)((i * src_w) / dest_w);
+    for(int i = 0; i < dest_h; i++) src_y_map[i] = (u8)((i * src_h) / dest_h);
+
+    // Clamp to screen bounds
+    int dy_start = 0, dy_end = dest_h;
+    if(dest_y < 0) dy_start = -dest_y;
+    if(dest_y + dest_h > SCREEN_HEIGHT) dy_end = SCREEN_HEIGHT - dest_y;
+
+    int dx_start = 0, dx_end = dest_w;
+    if(dest_x < 0) dx_start = -dest_x;
+    if(dest_x + dest_w > SCREEN_WIDTH) dx_end = SCREEN_WIDTH - dest_x;
+
+    // Draw silhouette (all non-background pixels become solid color)
+    for(int dy = dy_start; dy < dy_end; dy++) {
+        int py = dest_y + dy;
+        int src_y = src_y_map[dy];
+        int tile_row = src_y >> 3;
+        int pix_row = src_y & 7;
+        int row_base = py * SCREEN_WIDTH;
+
+        for(int dx = dx_start; dx < dx_end; dx++) {
+            int src_x = src_x_map[dx];
+            int tile_col = src_x >> 3;
+            int pix_col = src_x & 7;
+            int tile_index = tile_row * tiles_per_row + tile_col;
+            u8 pal_index = tiles[(tile_index << 6) + (pix_row << 3) + pix_col];
+            
+            if(pal_index == bg_index) continue;  // Skip background pixels
+            
+            back_buffer[row_base + dest_x + dx] = color;
+        }
+    }
+}
+
 void show_splash_screen(void) {
     clear_screen(BLACK);  // Black background
     
@@ -827,6 +899,7 @@ void render_game(void) {
                 }
             }
         }
+
         
         // Pokemon sprite area - positioned with exact measurements
         // Sprite box: (171, 70) to (202, 100), center at (186, 85)
@@ -865,24 +938,8 @@ void render_game(void) {
                         default:            mode_color = RGB15(10, 10, 10); break;  // Gray fallback
                     }
                     
-                    /* Draw silhouette - replace all non-transparent pixels with mode color */
-                    for(int sy = 0; sy < 32; sy++) {
-                        for(int sx = 0; sx < 32; sx++) {
-                            int screen_x = poke_x + sx;
-                            int screen_y = poke_y + sy;
-                            
-                            if(screen_x >= 0 && screen_x < SCREEN_WIDTH && 
-                               screen_y >= 0 && screen_y < SCREEN_HEIGHT) {
-                                
-                                /* Check if sprite has a pixel here (non-transparent) */
-                                int sprite_idx = sy * 64 + sx;  // Sprites are 64x64 internally
-                                if(sprite_idx < 64 * 64 && sprite->pixels[sprite_idx] != 0) {
-                                    /* Draw silhouette pixel */
-                                    back_buffer[screen_y * SCREEN_WIDTH + screen_x] = mode_color;
-                                }
-                            }
-                        }
-                    }
+                    /* Draw silhouette using helper function */
+                    draw_sprite_silhouette(poke_x, poke_y, sprite, 32, 32, mode_color);
                 }
             }
         }
