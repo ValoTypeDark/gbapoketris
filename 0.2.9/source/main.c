@@ -1000,14 +1000,58 @@ void handle_input(void) {
         if(down & KEY_RIGHT) { if(game.mode < 6) game.mode++; }
         if(down & KEY_B)     { game.state = STATE_TITLE; game.mode = MODE_ROOKIE; }
         if(down & (KEY_START | KEY_A)) {
-            if(game.mode == MODE_BACK) {
-                game.state = STATE_TITLE;  game.mode = MODE_ROOKIE;
-            } else if(game.mode == MODE_BONUS) {
-                /* bonus sub-menu – placeholder, go back for now */
-                game.state = STATE_TITLE;  game.mode = MODE_ROOKIE;
+            /* NOTE: Mode Select uses game.mode as a 0..6 cursor index.
+             * 0..4 = standard modes, 5 = BONUS submenu, 6 = BACK */
+            if(game.mode == 6) {
+                /* BACK */
+                game.state = STATE_TITLE;
+                game.mode  = MODE_ROOKIE;
+            } else if(game.mode == 5) {
+                /* BONUS */
+                game.menu_selection = 0;
+                game.state = STATE_BONUS_SELECT;
             } else {
+                /* Standard modes */
+                switch(game.mode) {
+                    case 0: game.mode = MODE_ROOKIE; break;
+                    case 1: game.mode = MODE_NORMAL; break;
+                    case 2: game.mode = MODE_SUPER;  break;
+                    case 3: game.mode = MODE_HYPER;  break;
+                    case 4: game.mode = MODE_MASTER; break;
+                    default: game.mode = MODE_ROOKIE; break;
+                }
                 init_game();   /* sets state = STATE_GAMEPLAY */
             }
+        }
+        return;
+    }
+
+    /* ── BONUS MODE SELECT ──────────────────────────────────────────────── */
+    if(game.state == STATE_BONUS_SELECT) {
+        if(down & KEY_LEFT) {
+            if(game.menu_selection > 0) game.menu_selection--;
+            else game.menu_selection = 3; /* wrap to BACK */
+        }
+        if(down & KEY_RIGHT) {
+            if(game.menu_selection < 3) game.menu_selection++;
+            else game.menu_selection = 0; /* wrap */
+        }
+        if(down & KEY_A) {
+            if(game.menu_selection == 3) {
+                /* BACK -> return to Mode Select highlighting BONUS */
+                game.mode  = 5;
+                game.state = STATE_MODE_SELECT;
+            } else {
+                /* 0=Unown, 1=Alcremie, 2=Vivillon */
+                static const GameMode bonus_modes[3] = { MODE_UNOWN, MODE_ALCREMIE, MODE_VIVILLON };
+                game.mode = bonus_modes[game.menu_selection];
+                init_game();
+            }
+        }
+        if(down & KEY_B) {
+            /* B -> return to Mode Select highlighting BONUS */
+            game.mode  = 5;
+            game.state = STATE_MODE_SELECT;
         }
         return;
     }

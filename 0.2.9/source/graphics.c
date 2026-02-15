@@ -1381,11 +1381,11 @@ void show_bonus_select(void) {
     clear_screen(RGB15(0,0,10));
     
     const char* bonus_names[4] = {
-        "RUINS OF ALPH", "GLOBAL GARDENS", "SWEET DREAMS", "BACK"
+        "RUINS OF ALPH", "SWEET DREAMS CAFE", "GLOBAL GARDENS", "BACK"
     };
     
     const char* bonus_desc_line1[4] = {
-        "UNOWN LETTER", "VIVILLON FORMS", "ALCREMIE SWEETS", "TO MODE"
+        "UNOWN LETTER", "ALCREMIE SWEETS", "VIVILLON FORMS", "TO MODE"
     };
     
     const char* bonus_desc_line2[4] = {
