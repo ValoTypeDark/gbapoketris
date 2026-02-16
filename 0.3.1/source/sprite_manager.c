@@ -195,6 +195,12 @@ void display_sprite_bg(int dest_x, int dest_y, SpriteData* sprite,
                         int dest_w, int dest_h) {
     if(!sprite || !sprite->is_loaded) return;
 
+    /* OPTIMIZATION 4: Early exit for off-screen sprites */
+    if(dest_x + dest_w <= 0 || dest_x >= SCREEN_WIDTH ||
+       dest_y + dest_h <= 0 || dest_y >= SCREEN_HEIGHT) {
+        return;
+    }
+
     extern u16 back_buffer[];   /* defined in graphics.c (EWRAM) */
 
     const u8*  tiles   = sprite->tiles;

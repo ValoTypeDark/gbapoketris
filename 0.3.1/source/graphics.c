@@ -538,23 +538,26 @@ void draw_number(int x, int y, u32 number, u16 color) {
     draw_text(x, y, buffer, color);
 }
 
+/* OPTIMIZATION 3: Optimized block drawing */
 void draw_block(int x, int y, u16 color) {
-    /* Guard: skip entirely if fully off-screen */
+    /* Early exit for completely off-screen blocks */
     if(x + BLOCK_SIZE <= 0 || x >= SCREEN_WIDTH ||
        y + BLOCK_SIZE <= 0 || y >= SCREEN_HEIGHT) return;
 
-    u16 border = color >> 1;   /* darkened border colour */
+    u16 border = color >> 1;   /* darkened border color */
     int i, j;
-
-    /* Top border row */
-    if(y >= 0 && y < SCREEN_HEIGHT) {
-        int row = y * SCREEN_WIDTH;
-        int x0 = x < 0 ? 0 : x;
-        int x1 = (x + BLOCK_SIZE) > SCREEN_WIDTH ? SCREEN_WIDTH : (x + BLOCK_SIZE);
-        for(j = x0; j < x1; j++) back_buffer[row + j] = border;
-    }
-    /* Bottom border row */
-    {
+    
+    /* Handle edge cases with clipping - use original safe logic */
+    if(x < 0 || y < 0 || x + BLOCK_SIZE > SCREEN_WIDTH || y + BLOCK_SIZE > SCREEN_HEIGHT) {
+        /* Top border row */
+        if(y >= 0 && y < SCREEN_HEIGHT) {
+            int row = y * SCREEN_WIDTH;
+            int x0 = x < 0 ? 0 : x;
+            int x1 = (x + BLOCK_SIZE) > SCREEN_WIDTH ? SCREEN_WIDTH : (x + BLOCK_SIZE);
+            for(j = x0; j < x1; j++) back_buffer[row + j] = border;
+        }
+        
+        /* Bottom border row */
         int by = y + BLOCK_SIZE - 1;
         if(by >= 0 && by < SCREEN_HEIGHT) {
             int row = by * SCREEN_WIDTH;
@@ -562,32 +565,49 @@ void draw_block(int x, int y, u16 color) {
             int x1 = (x + BLOCK_SIZE) > SCREEN_WIDTH ? SCREEN_WIDTH : (x + BLOCK_SIZE);
             for(j = x0; j < x1; j++) back_buffer[row + j] = border;
         }
-    }
-    /* Interior rows (top+1 … bottom-1): left border, fill, right border */
-    {
+        
+        /* Interior rows: left border (1px), fill (BLOCK_SIZE-2 px), right border (1px) */
         int y0 = y + 1;  if(y0 < 0) y0 = 0;
-        int y1 = y + BLOCK_SIZE - 1;  if(y1 > SCREEN_HEIGHT) y1 = SCREEN_HEIGHT;
-        int lx = x;                    /* left border col */
-        int rx = x + BLOCK_SIZE - 1;   /* right border col */
-        int fx0 = x + 1;              /* fill start */
+        int y1 = y + BLOCK_SIZE - 1; if(y1 > SCREEN_HEIGHT) y1 = SCREEN_HEIGHT;
+        int lx = x;                    /* left border column */
+        int rx = x + BLOCK_SIZE - 1;  /* right border column */
+        int fx0 = x + 1;               /* fill start */
         int fx1 = x + BLOCK_SIZE - 1; /* fill end (exclusive) */
-        /* clamp fill range */
         if(fx0 < 0) fx0 = 0;
         if(fx1 > SCREEN_WIDTH) fx1 = SCREEN_WIDTH;
 
         for(i = y0; i < y1; i++) {
             int row = i * SCREEN_WIDTH;
-            /* left border pixel */
             if(lx >= 0 && lx < SCREEN_WIDTH)
                 back_buffer[row + lx] = border;
-            /* interior fill — tight loop, no branches */
             for(j = fx0; j < fx1; j++)
                 back_buffer[row + j] = color;
-            /* right border pixel */
             if(rx >= 0 && rx < SCREEN_WIDTH)
                 back_buffer[row + rx] = border;
         }
+        return;
     }
+    
+    /* Fast path: Block completely on-screen - optimized for BLOCK_SIZE = 8 */
+    int base = y * SCREEN_WIDTH + x;
+    
+    /* Top border row (row 0) - all BLOCK_SIZE pixels are border */
+    u16* row0 = &back_buffer[base];
+    for(int i = 0; i < BLOCK_SIZE; i++) row0[i] = border;
+    
+    /* Middle rows (rows 1 to BLOCK_SIZE-2) - 1px border + (BLOCK_SIZE-2)px fill + 1px border */
+    for(int row = 1; row < BLOCK_SIZE - 1; row++) {
+        u16* rowN = &back_buffer[base + row * SCREEN_WIDTH];
+        rowN[0] = border;       /* Left border (1 pixel) */
+        for(int i = 1; i < BLOCK_SIZE - 1; i++) {
+            rowN[i] = color;    /* Fill (BLOCK_SIZE-2 pixels) */
+        }
+        rowN[BLOCK_SIZE - 1] = border;  /* Right border (1 pixel) */
+    }
+    
+    /* Bottom border row (row BLOCK_SIZE-1) - all BLOCK_SIZE pixels are border */
+    u16* rowLast = &back_buffer[base + (BLOCK_SIZE - 1) * SCREEN_WIDTH];
+    for(int i = 0; i < BLOCK_SIZE; i++) rowLast[i] = border;
 }
 
 void draw_tetromino(Tetromino* tetro, int offset_x, int offset_y) {
