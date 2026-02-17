@@ -1063,10 +1063,24 @@ void render_game(void) {
                 }
             }
         } else if(game.next_piece.category == PIECE_PENTOMINO) {
-            // Pentomino in next
+            // Pentomino in next - calculate bounds for proper centering
+            int min_x = 100, max_x = -100, min_y = 100, max_y = -100;
             for(int i = 0; i < game.next_piece.block_count; i++) {
-                int px = next_x + game.next_piece.blocks[i][0] * 6;
-                int py = next_y + game.next_piece.blocks[i][1] * 6;
+                if(game.next_piece.blocks[i][0] < min_x) min_x = game.next_piece.blocks[i][0];
+                if(game.next_piece.blocks[i][0] > max_x) max_x = game.next_piece.blocks[i][0];
+                if(game.next_piece.blocks[i][1] < min_y) min_y = game.next_piece.blocks[i][1];
+                if(game.next_piece.blocks[i][1] > max_y) max_y = game.next_piece.blocks[i][1];
+            }
+            
+            // Calculate offset to center the piece in the preview box
+            int width = (max_x - min_x + 1) * 6;
+            int height = (max_y - min_y + 1) * 6;
+            int offset_x = -min_x * 6 - width / 2;
+            int offset_y = -min_y * 6 - height / 2;
+            
+            for(int i = 0; i < game.next_piece.block_count; i++) {
+                int px = next_x + game.next_piece.blocks[i][0] * 6 + offset_x;
+                int py = next_y + game.next_piece.blocks[i][1] * 6 + offset_y;
                 for(int dy = 0; dy < 5; dy++) {
                     for(int dx = 0; dx < 5; dx++) {
                         if(px + dx >= 0 && px + dx < SCREEN_WIDTH && py + dy >= 0 && py + dy < SCREEN_HEIGHT) {
