@@ -1,0 +1,13 @@
+#define SFX_BG_GAMEPLAY	0
+#define SFX_BG_MAINMENU	1
+#define SFX_BG_POKEDEX	2
+#define SFX_BIG_CLEAR	3
+#define SFX_CLEAR	4
+#define SFX_LEVEL_UP	5
+#define SFX_MENU_MOVE	6
+#define SFX_MENU_SELECT	7
+#define SFX_POKEMON_CATCH	8
+#define SFX_SHINY	9
+#define MSL_NSONGS	0
+#define MSL_NSAMPS	10
+#define MSL_BANKSIZE	10
