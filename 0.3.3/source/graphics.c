@@ -1332,6 +1332,44 @@ void render_game(void) {
                         draw_char_pokemongame8(text_x + (i * spacing), big_clear_y, c, mode_color, back_buffer, SCREEN_WIDTH);
                     }
                 }
+                /* Display tier-up bonus message if active */
+                if(game.tier_up_active) {
+                    const char* tier_msg = NULL;
+                        
+                    switch(game.mode) {
+                        case MODE_ROOKIE:
+                            tier_msg = "NORMAL POKEMON!";
+                            break;
+                        case MODE_NORMAL:
+                            tier_msg = "SUPER POKEMON!";
+                            break;
+                        case MODE_SUPER:
+                            tier_msg = "HYPER POKEMON!";
+                            break;
+                        case MODE_HYPER:
+                            tier_msg = "MASTER POKEMON!";
+                            break;
+                        case MODE_MASTER:
+                            tier_msg = "SPECIAL POKEMON!";
+                            break;
+                        default:
+                            tier_msg = NULL;
+                            break;
+                    }
+                    
+                    if(tier_msg) {
+                        int msg_y = bar_y + 20;  // Position below big clear streak
+                        int text_x = 138;
+                        int spacing = 6;
+                        
+                        // Draw in bright yellow to stand out
+                        for(int i = 0; tier_msg[i] != '\0'; i++) {
+                            char c = tier_msg[i];
+                            if(c >= 'a' && c <= 'z') c = c - 32;  // Uppercase
+                            draw_char_pokemongame8(text_x + (i * spacing), msg_y, c, POKEMON_YELLOW, back_buffer, SCREEN_WIDTH);
+                        }
+                    }
+                }
             }
         }
         

@@ -197,6 +197,8 @@ typedef struct {
     u16 pokemon_duration; // Total pieces this Pokemon stays for
     u8 is_shiny;         // Is current Pokemon shiny?
     u8 big_clear_streak; // Consecutive 4/5 line clears (resets on 1/2/3 line clear)
+    u8 special_spawn_pending; // Flag: next Pokemon spawn should be special (5-line clear bonus)
+    u8 tier_up_active; // Flag: current Pokemon is from tier-up bonus
     PokemonCatch pokemon_catches[1349]; // Track catches (matches TOTAL_POKEMON)
     u8 menu_selection;  // Current menu selection (0-4)
     u8 game_over_selection; // Game over menu (0=Restart, 1=Menu)

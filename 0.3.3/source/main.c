@@ -351,6 +351,8 @@ void init_game(void) {
 /* Shiny / streak */
     game.is_shiny                  = 0;
     game.big_clear_streak          = 0;
+    game.special_spawn_pending     = 0;
+    game.tier_up_active            = 0;
     game.pokemon_caught_this_game  = 0;
     game.shinies_caught_this_game  = 0;
     game.new_dex_entries           = 0;
@@ -714,7 +716,10 @@ void spawn_next_piece(void) {
 
     /* Pokemon countdown tick */
     if(game.pieces_left > 0) game.pieces_left--;
-    if(game.pieces_left == 0) spawn_random_pokemon();
+    if(game.pieces_left == 0) {
+        game.tier_up_active = 0;  // Clear tier-up flag before spawning new Pokemon
+        spawn_random_pokemon();
+    }
 
     /* Immediate top-out check */
     if(check_collision(&game.current_piece, &game.board)) {
@@ -728,69 +733,186 @@ void spawn_next_piece(void) {
  * ───────────────────────────────────────────────────────────────────────────── */
 void spawn_random_pokemon(void) {
     int i;
-
     check_for_shiny();
 
-    /* Map game.mode → the POKE_MODE bit for this mode */
-    u8 mode_bit;
-    switch(game.mode) {
-        case MODE_ROOKIE:   mode_bit = POKE_MODE_ROOKIE;    break;
-        case MODE_NORMAL:   mode_bit = POKE_MODE_NORMAL;    break;
-        case MODE_SUPER:    mode_bit = POKE_MODE_SUPER;     break;
-        case MODE_HYPER:    mode_bit = POKE_MODE_HYPER;     break;
-        case MODE_MASTER:   mode_bit = POKE_MODE_MASTER;    break;
-        case MODE_UNOWN:    mode_bit = POKE_MODE_UNOWN;     break;
-        case MODE_VIVILLON: mode_bit = POKE_MODE_VIVILLON;  break;
-        case MODE_ALCREMIE: mode_bit = POKE_MODE_ALCREMIE;  break;
-        default:            mode_bit = POKE_MODE_ROOKIE;    break;
-    }
-
-    /* Pool = Pokemon that explicitly allow this mode AND have a non-zero turn value for it.
-     * (Some entries may have mode bits but 0 turns due to data mistakes; treat them as ineligible.) */
-    int pool_size = 0;
-    for(i = 0; i < TOTAL_POKEMON; i++) {
-        if((POKEMON_DATABASE[i].modes & mode_bit) && get_pokemon_turns(i, (u8)game.mode) > 0) {
-            pool_size++;
+    // STEP 4: Determine which mode pool to use
+    u8 target_mode_bit;
+    u8 use_tier_up = 0;
+    u8 use_special_only = 0;
+    
+    // Check if this is a special spawn (5-line clear bonus)
+    if(game.special_spawn_pending) {
+        // 50% chance to pull from next tier up
+        if((rand() % 100) < 50) {
+            use_tier_up = 1;
+            game.tier_up_active = 1;  // ADD THIS LINE - Track that tier-up happened
+        }
+        
+        // Determine target mode based on current mode
+        switch(game.mode) {
+            case MODE_ROOKIE:
+                target_mode_bit = use_tier_up ? POKE_MODE_NORMAL : POKE_MODE_ROOKIE;
+                break;
+            case MODE_NORMAL:
+                target_mode_bit = use_tier_up ? POKE_MODE_SUPER : POKE_MODE_NORMAL;
+                break;
+            case MODE_SUPER:
+                target_mode_bit = use_tier_up ? POKE_MODE_HYPER : POKE_MODE_SUPER;
+                break;
+            case MODE_HYPER:
+                target_mode_bit = use_tier_up ? POKE_MODE_MASTER : POKE_MODE_HYPER;
+                break;
+            case MODE_MASTER:
+                // Master mode: 50% chance for special Pokemon instead of tier up
+                if(use_tier_up) {
+                    use_special_only = 1;
+                    target_mode_bit = POKE_MODE_MASTER;
+                } else {
+                    target_mode_bit = POKE_MODE_MASTER;
+                }
+                break;
+            case MODE_UNOWN:
+            case MODE_VIVILLON:
+            case MODE_ALCREMIE:
+                // Bonus modes: use their own pool
+                target_mode_bit = (game.mode == MODE_UNOWN) ? POKE_MODE_UNOWN :
+                                  (game.mode == MODE_VIVILLON) ? POKE_MODE_VIVILLON :
+                                  POKE_MODE_ALCREMIE;
+                break;
+            default:
+                target_mode_bit = POKE_MODE_ROOKIE;
+                break;
+        }
+    } else {
+        // Normal spawn - use current mode
+        switch(game.mode) {
+            case MODE_ROOKIE:   target_mode_bit = POKE_MODE_ROOKIE;    break;
+            case MODE_NORMAL:   target_mode_bit = POKE_MODE_NORMAL;    break;
+            case MODE_SUPER:    target_mode_bit = POKE_MODE_SUPER;     break;
+            case MODE_HYPER:    target_mode_bit = POKE_MODE_HYPER;     break;
+            case MODE_MASTER:   target_mode_bit = POKE_MODE_MASTER;    break;
+            case MODE_UNOWN:    target_mode_bit = POKE_MODE_UNOWN;     break;
+            case MODE_VIVILLON: target_mode_bit = POKE_MODE_VIVILLON;  break;
+            case MODE_ALCREMIE: target_mode_bit = POKE_MODE_ALCREMIE;  break;
+            default:            target_mode_bit = POKE_MODE_ROOKIE;    break;
         }
     }
 
+    // Build pool of eligible Pokemon
+    int pool_size = 0;
+    for(i = 0; i < TOTAL_POKEMON; i++) {
+        const PokemonData* pdata = &POKEMON_DATABASE[i];
+        
+        // Check mode compatibility
+        if(!(pdata->modes & target_mode_bit)) continue;
+        
+        // Check if this mode has non-zero turns
+        if(get_pokemon_turns(i, (u8)game.mode) == 0) continue;
+        
+        // Special spawn filters
+        if(game.special_spawn_pending) {
+            // Must be uncaught (check both normal and shiny)
+            if(game.pokemon_catches[i].unlocked || game.pokemon_catches[i].unlocked_shiny) {
+                continue;
+            }
+            
+            // If Master mode tier-up, only allow special Pokemon
+            if(use_special_only) {
+                if(pdata->special != 1) continue;
+            }
+        }
+        
+        pool_size++;
+    }
+
+    // Fallback if no uncaught Pokemon in pool
+    if(pool_size == 0 && game.special_spawn_pending) {
+        // Fall back to caught Pokemon from target tier
+        for(i = 0; i < TOTAL_POKEMON; i++) {
+            const PokemonData* pdata = &POKEMON_DATABASE[i];
+            if((pdata->modes & target_mode_bit) && get_pokemon_turns(i, (u8)game.mode) > 0) {
+                if(use_special_only && pdata->special != 1) continue;
+                pool_size++;
+            }
+        }
+    }
+
+    // Final fallback: any Pokemon with non-zero turns
     if(pool_size == 0) {
-        /* Fallback #1: allow anything with a non-zero turn value in this mode */
         for(i = 0; i < TOTAL_POKEMON; i++) {
             if(get_pokemon_turns(i, (u8)game.mode) > 0) pool_size++;
         }
     }
 
+    // Absolute fallback
     if(pool_size == 0) {
-        /* Absolute fallback: just pick any (and clamp turns below) */
         game.current_pokemon = (u16)(rand() % TOTAL_POKEMON);
     } else {
+        // Pick random from pool
         int target = rand() % pool_size;
-        int count  = 0;
-        u8 picked  = 0;
-
-        /* First pass: strict pool */
+        int count = 0;
+        u8 picked = 0;
+        
+        // First pass: try with all filters
         for(i = 0; i < TOTAL_POKEMON; i++) {
-            if((POKEMON_DATABASE[i].modes & mode_bit) && get_pokemon_turns(i, (u8)game.mode) > 0) {
-                if(count++ == target) { game.current_pokemon = (u16)i; picked = 1; break; }
+            const PokemonData* pdata = &POKEMON_DATABASE[i];
+            
+            if(!(pdata->modes & target_mode_bit)) continue;
+            if(get_pokemon_turns(i, (u8)game.mode) == 0) continue;
+            
+            if(game.special_spawn_pending) {
+                if(game.pokemon_catches[i].unlocked || game.pokemon_catches[i].unlocked_shiny) {
+                    continue;
+                }
+                if(use_special_only && pdata->special != 1) continue;
+            }
+            
+            if(count++ == target) {
+                game.current_pokemon = (u16)i;
+                picked = 1;
+                break;
             }
         }
-
-        /* If we didn't pick (because we were in fallback #1), do fallback scan */
+        
+        // Fallback scan if needed
+        if(!picked && game.special_spawn_pending) {
+            count = 0;
+            for(i = 0; i < TOTAL_POKEMON; i++) {
+                const PokemonData* pdata = &POKEMON_DATABASE[i];
+                if((pdata->modes & target_mode_bit) && get_pokemon_turns(i, (u8)game.mode) > 0) {
+                    if(use_special_only && pdata->special != 1) continue;
+                    if(count++ == target) {
+                        game.current_pokemon = (u16)i;
+                        picked = 1;
+                        break;
+                    }
+                }
+            }
+        }
+        
+        // Final fallback
         if(!picked) {
             count = 0;
             for(i = 0; i < TOTAL_POKEMON; i++) {
                 if(get_pokemon_turns(i, (u8)game.mode) > 0) {
-                    if(count++ == target) { game.current_pokemon = (u16)i; break; }
+                    if(count++ == target) {
+                        game.current_pokemon = (u16)i;
+                        break;
+                    }
                 }
             }
         }
     }
 
+    // Clear the special spawn flag (but keep tier_up_active until Pokemon changes)
+    game.special_spawn_pending = 0;
+    // Note: tier_up_active stays set and will be cleared when Pokemon despawns
+
+    // Set Pokemon duration
     {
         u8 turns = get_pokemon_turns((int)game.current_pokemon, (u8)game.mode);
-        if(turns == 0) turns = 11;   /* safety: never zero */
-        game.pieces_left      = turns;
+        if(turns == 0) turns = 11;
+        game.pieces_left = turns;
         game.pokemon_duration = turns;
     }
 
@@ -1080,6 +1202,11 @@ void handle_game_over_input(void)  { /* handled inside handle_input() STATE_GAME
 static void update_big_clear_streak(int lines_cleared) {
     if(lines_cleared >= 4)  game.big_clear_streak++;
     else if(lines_cleared > 0) game.big_clear_streak = 0;
+    
+    // STEP 3: Trigger special spawn on 5-line clear
+    if(lines_cleared == 5) {
+        game.special_spawn_pending = 1;
+    }
 }
 
 static void check_for_shiny(void) {
